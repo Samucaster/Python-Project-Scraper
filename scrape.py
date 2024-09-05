@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import re
+import json
 
 def scrape_product_details(url: str) -> tuple[str | None, list[str], list[str], str | None]:
     """Scrapes product price, available sizes, out-of-stock sizes, and item code from a webpage.
@@ -49,10 +50,21 @@ def scrape_product_details(url: str) -> tuple[str | None, list[str], list[str], 
             if ul_tag:
                 item_code_element = ul_tag.find('li', string=re.compile(r'\bI\d{6}_[A-Z0-9]+_[A-Z0-9]+\b'))
                 item_code = item_code_element.text.strip() if item_code_element else None
-          
 
-        else:
-            item_code = None
+        if not item_code:
+            json_ld_script = soup.find('script', type='application/ld+json')
+            if json_ld_script:
+                try:
+                    # Parse JSON-LD content
+                    json_ld_data = json.loads(json_ld_script.string.strip())
+                    # Extract SKU from JSON-LD
+                    if isinstance(json_ld_data, list):
+                        for item in json_ld_data:
+                            if '@type' in item and item['@type'] == 'Product':
+                                item_code = item.get('sku')
+                                break
+                except json.JSONDecodeError:
+                    print("Error decoding JSON-LD data.")
 
         return price, oldprice, available_sizes, out_of_stock_sizes, item_code
     except requests.exceptions.RequestException as e:
@@ -61,7 +73,7 @@ def scrape_product_details(url: str) -> tuple[str | None, list[str], list[str], 
 
 # Example usage:
 if __name__ == "__main__":
-    url = "https://americanrag.ae/collections/carhartt-wip/products/l-s-master-shirt-for-mens-3?variant=44405048606894"  # Replace with the actual URL
+    url = "https://americanrag.ae/collections/carhartt-wip/products/sid-pant-lamar-for-mens"  # Replace with the actual URL
     price, oldprice, available_sizes, out_of_stock_sizes, item_code = scrape_product_details(url)
 
     if price and (available_sizes or out_of_stock_sizes):
