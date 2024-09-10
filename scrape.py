@@ -7,12 +7,12 @@ import os
 from datetime import datetime
 
 def scrape_product_details(url: str, item_name: str) -> list:
-    """Scrapes product details from a product webpage and returns separate entries for each color.
+    """Scrapes product details via product page urls from American Rag-Carhartt WIP collection page and returns product details per item.
     Args:
         url: The URL of the product webpage to scrape.
-        item_name: The name of the item extracted from aria-label.
+        item_name: Item name extracted from aria-label element.
     Returns:
-        A list of dictionaries, each containing details for a specific color.
+        A data set containing details for each available item.
     """
     product_entries = []
 
@@ -27,15 +27,26 @@ def scrape_product_details(url: str, item_name: str) -> list:
 
         #Find original price div
         oldprice_div = soup.find('div', class_='product-price--compare')
-        oldprice = oldprice_div.text.strip() if oldprice_div else none
+        oldprice = oldprice_div.text.strip() if oldprice_div else None
+
+        #If price = original price or no discount
+        if oldprice is None or oldprice == '':
+            if price is not None and price != '':
+                oldprice = price
+            else:
+                oldprice = '0.00' #default value if price = None
 
         #calculate discount
-        oldprice_num = float(oldprice.replace("AED. ", ""))
-        price_num = float(price.replace("AED. ", ""))
-        calc = (1 - price_num/oldprice_num) * 100
-        disc = str(round(calc,2))
-
-
+        if oldprice is None or price is None:
+            disc = '0.00'
+        else:
+            try:
+                oldprice_num = float(oldprice.replace("AED. ", "")) 
+                price_num = float(price.replace("AED. ", ""))
+                calc = (1 - price_num/oldprice_num) * 100
+                disc = str(round(calc,2))
+            except ValueError:
+                disc = '0.00'
 
         # Find item colors in the page
         color_labels = soup.find_all('label', {'for': lambda x: x and 'main-color' in x})
@@ -52,7 +63,7 @@ def scrape_product_details(url: str, item_name: str) -> list:
             for option in size_options:
                 size = option.text.strip()
                 if item_color in size:
-                    size = size.replace(item_color, "").strip()  # Remove item color
+                    size = size.replace(item_color, "").strip()  # Remove item color in size
                     if "/" in size:
                         size = size.split("/", 1)[-1].strip()  # Use part after the first "/"
                 
@@ -62,7 +73,7 @@ def scrape_product_details(url: str, item_name: str) -> list:
                     else:
                         available_sizes.append(size)
 
-            # Create a dictionary entry for each color
+            # Create an entry for each item sku separated by available colors
             product_entries.append({
                 'Product URL': url,
                 'Item Name': item_name,
@@ -108,12 +119,12 @@ def scrape_product_details(url: str, item_name: str) -> list:
     return product_entries
 
 def scrape_main_page(url: str):
-    """Scrapes the main page for product URLs and then scrapes each product, exporting data to an Excel file.
+    """Scrapes the collection page for product URLs and then scrapes each product, exporting data to an Excel file.
     Args:
         url: The URL of the main page to scrape.
     """
     all_product_data = []
-    base_url = "https://americanrag.ae"
+    base_url = "https://americanrag.ae" #main website URL
     
     try:
         response = requests.get(url)
